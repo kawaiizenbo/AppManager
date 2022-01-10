@@ -1,0 +1,39 @@
+﻿<Window x:Name="window" x:Class="AppManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AppManager"
+        mc:Ignorable="d"
+        Title="AppManager (No device)" Height="550" Width="450" MinHeight="550" MinWidth="450" Loaded="Event_window_Loaded">
+    <Grid>
+        <Button x:Name="installNewAppButton" Content="Install new" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Height="20" Width="75" IsEnabled="False" Click="Event_installNewAppButton_Click"/>
+        <Button x:Name="removeSelectedAppButton" Content="Remove selected" HorizontalAlignment="Left" Margin="90,10,0,0" VerticalAlignment="Top" Height="20" Width="100" IsEnabled="False" Click="Event_removeSelectedAppButton_Click"/>
+        <GroupBox Header="Installed Apps" Margin="10,35,10,250">
+            <Grid>
+                <ListView x:Name="installedAppsListView" d:ItemsSource="{d:SampleData ItemCount=5}">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Name" DisplayMemberBinding="{Binding CFBundleDisplayName}"/>
+                            <GridViewColumn Header="Version" DisplayMemberBinding="{Binding CFBundleVersion}"/>
+                            <GridViewColumn Header="Bundle ID" DisplayMemberBinding="{Binding CFBundleIdentifier}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+        </GroupBox>
+        <GroupBox Header="Log" Margin="10,0,10,10" VerticalAlignment="Bottom" Height="235">
+            <Grid>
+                <ListBox x:Name="logListBox" d:ItemsSource="{d:SampleData ItemCount=5}" FontFamily="Lucida Console">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </GroupBox>
+        <Button x:Name="refreshAppListButton" Content="Refresh List" HorizontalAlignment="Left" Margin="195,10,0,0" VerticalAlignment="Top" Height="20" Width="75" IsEnabled="False" Click="Event_refreshAppListButton_Click"/>
+
+    </Grid>
+</Window>
