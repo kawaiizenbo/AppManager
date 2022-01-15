@@ -1,5 +1,6 @@
 # AppManager
-iOS device App manager for Windows
+iOS device App manager for Windows  
+This program does NOT sideload applications used for jailbreaking devices (Phoenix, h3lix, Unc0ver, Electra)
 
 ## Requirements  
 iOS Device (iOS 2 through 15 should work)  
