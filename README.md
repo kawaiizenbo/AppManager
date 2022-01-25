@@ -4,7 +4,7 @@ This program does NOT sideload applications used for jailbreaking devices (Phoen
 
 ## Requirements  
 iOS Device (iOS 2 through 15 should work)  
-Windows Vista SP2 or newer   
+Windows 7 or newer   
 .NET Framework 4.5 or newer  
 iTunes 10 or newer (NOT from Microsoft store)  
 
