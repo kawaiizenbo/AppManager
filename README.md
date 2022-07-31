@@ -1,5 +1,5 @@
 # AppManager
-iOS device App manager for Windows  
+GUI for ideviceinstaller for Windows  
 This program does NOT sideload applications used for jailbreaking devices (Phoenix, h3lix, Unc0ver, Electra)
 
 ## Requirements  
