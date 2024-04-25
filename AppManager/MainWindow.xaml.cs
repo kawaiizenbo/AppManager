@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Timers;
 using System.Windows;
@@ -27,6 +29,7 @@ namespace AppManager
         private string deviceName;
         private string deviceVersion;
         private string deviceUDID = "";
+        bool madeTempFile = false;
 
         private string ipaPath = "";
         private string selectedBundleID = "";
@@ -79,10 +82,7 @@ namespace AppManager
                             new Action(
                             delegate ()
                             {
-                                logListBox.Items.Add("Device disconnected.");
-                                var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                                var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                                scrollViewer.ScrollToBottom();
+                                Log("Device disconnected.");
                                 installedAppsListView.ItemsSource = null;
                             }
                         ));
@@ -100,14 +100,11 @@ namespace AppManager
                             new Action(
                             delegate ()
                             {
-                                logListBox.Items.Add("Connecting to device...");
-                                var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                                var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                                scrollViewer.ScrollToBottom();
+                                Log("Connecting to device...");
                             }
                         ));
                         idevice.idevice_new(out deviceHandle, udids[0]).ThrowOnError();
-                        lockdown.lockdownd_client_new_with_handshake(deviceHandle, out lockdownHandle, "absl").ThrowOnError();
+                        lockdown.lockdownd_client_new_with_handshake(deviceHandle, out lockdownHandle, "AppManager").ThrowOnError();
 
                         // get device info
                         lockdown.lockdownd_get_device_name(lockdownHandle, out deviceName).ThrowOnError();
@@ -120,18 +117,18 @@ namespace AppManager
 
                         deviceUDID = udids[0];
 
-                        Task.Run(new Action(GetAppsThread));
-
                         Dispatcher.Invoke(
                             System.Windows.Threading.DispatcherPriority.Normal,
                             new Action(
-                            delegate ()
+                            async delegate ()
                             {
-                                installedAppsListView.ItemsSource = appList;
                                 window.Title = $"AppManager ({deviceName}, {deviceType}, iOS {deviceVersion})";
                                 installNewAppButton.IsEnabled = true;
                                 removeSelectedAppButton.IsEnabled = true;
                                 refreshAppListButton.IsEnabled = true;
+                                await Task.Run(new Action(GetAppsThread));
+                                installedAppsListView.ItemsSource = null;
+                                installedAppsListView.ItemsSource = appList;
                             }
                         ));
                         gotDeviceInfo = true;
@@ -139,19 +136,14 @@ namespace AppManager
                     catch (Exception ex)
                     {
                         deviceUDID = "";
-                        Dispatcher.Invoke(
-                            System.Windows.Threading.DispatcherPriority.Normal,
-                            new Action(
+                        Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(
                             delegate ()
                             {
                                 installNewAppButton.IsEnabled = false;
                                 removeSelectedAppButton.IsEnabled = false;
                                 refreshAppListButton.IsEnabled = false;
                                 window.Title = $"AppManager (No device)";
-                                logListBox.Items.Add($"Could not connect to device: {ex.Message}");
-                                var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                                var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                                scrollViewer.ScrollToBottom();
+                                Log($"Could not connect to device: {ex.Message}");
                             }
                         ));
                         gotDeviceInfo = false; // never should matter but just in case
@@ -171,12 +163,19 @@ namespace AppManager
 
             openIPAFile.ShowDialog();
 
-            ipaPath = openIPAFile.FileName;
+            string origIpaPath = openIPAFile.FileName;
+            string fixedIpaPath = Regex.Replace(origIpaPath, @"[^\u0000-\u007F]+", "_");
+            if (origIpaPath == fixedIpaPath) { ipaPath = origIpaPath; madeTempFile = false; }
+            else
+            {
+                Log("Filename contains invalid characters. Making duplicate");
+                madeTempFile = true;
+                Debug.WriteLine(origIpaPath);
+                File.Copy(origIpaPath, fixedIpaPath);
+                ipaPath = fixedIpaPath;
+            }
 
-            logListBox.Items.Add($"Attempting install of {ipaPath}");
-            var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-            var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-            scrollViewer.ScrollToBottom();
+            Log($"Attempting install of {ipaPath}");
             Task.Run(new Action(InstallAppThread));
         }
 
@@ -184,22 +183,21 @@ namespace AppManager
         {
             selectedBundleID = ((DeviceApp)installedAppsListView.SelectedItem).CFBundleIdentifier;
 
-            logListBox.Items.Add($"Attempting removal of of {selectedBundleID}");
-            var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-            var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-            scrollViewer.ScrollToBottom();
+            Log($"Attempting removal of of {selectedBundleID}");
             Task.Run(new Action(RemoveAppThread));
         }
 
         private void Event_refreshAppListButton_Click(object sender, RoutedEventArgs e)
         {
-            Task.Run(new Action(GetAppsThread));
+            Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(
+                async delegate ()
+                {
+                    await Task.Run(new Action(GetAppsThread));
+                }
+            ));
             installedAppsListView.ItemsSource = null;
             installedAppsListView.ItemsSource = appList;
-            logListBox.Items.Add("Refreshed.");
-            var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-            var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-            scrollViewer.ScrollToBottom();
+            Log("Refreshed.");
         }
 
         private void RemoveAppThread()
@@ -223,19 +221,18 @@ namespace AppManager
                 if (line == null || line.Trim() == "") line = proc.StandardError.ReadLine();
                 Dispatcher.Invoke(() =>
                 {
-                    logListBox.Items.Add(line);
-                    var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                    var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                    scrollViewer.ScrollToBottom();
+                    Log(line);
                 });
             }
             Dispatcher.Invoke(() =>
             {
-                logListBox.Items.Add($"Process ended with code {proc.ExitCode} {(proc.ExitCode == 0 ? "(Success)" : "")}");
-                var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                scrollViewer.ScrollToBottom();
-                Task.Run(new Action(GetAppsThread));
+                Log($"Process ended with code {proc.ExitCode} {(proc.ExitCode == 0 ? "(Success)" : "")}");
+                Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(
+                    async delegate ()
+                    {
+                        await Task.Run(new Action(GetAppsThread));
+                    }
+                ));
                 installedAppsListView.ItemsSource = null;
                 installedAppsListView.ItemsSource = appList;
             });
@@ -262,22 +259,26 @@ namespace AppManager
                 if (line == null || line.Trim() == "") line = proc.StandardError.ReadLine();
                 Dispatcher.Invoke(() =>
                 {
-                    logListBox.Items.Add(line);
-                    var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                    var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                    scrollViewer.ScrollToBottom();
+                    Log(line);
                 });
             }
             Dispatcher.Invoke(() =>
             {
-                logListBox.Items.Add($"Process ended with code {proc.ExitCode} {(proc.ExitCode == 0 ? "(Success)" : "")}");
-                var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
-                var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
-                scrollViewer.ScrollToBottom();
-                Task.Run(new Action(GetAppsThread));
+                Log($"Process ended with code {proc.ExitCode} {(proc.ExitCode == 0 ? "(Success)" : "")}");
+                Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(
+                async delegate ()
+                {
+                    await Task.Run(new Action(GetAppsThread));
+                }
+                ));
                 installedAppsListView.ItemsSource = null;
                 installedAppsListView.ItemsSource = appList;
             });
+            if (madeTempFile)
+            {
+                File.Delete(ipaPath);
+                madeTempFile = false;
+            }
         }
 
         private void GetAppsThread()
@@ -308,6 +309,14 @@ namespace AppManager
                 });
             }
             proc.WaitForExit();
+        }
+
+        public void Log(string msg)
+        {
+            logListBox.Items.Add(msg);
+            var border = (Border)VisualTreeHelper.GetChild(logListBox, 0);
+            var scrollViewer = (ScrollViewer)VisualTreeHelper.GetChild(border, 0);
+            scrollViewer.ScrollToBottom();
         }
     }
 
